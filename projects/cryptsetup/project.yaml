@@ -1,0 +1,8 @@
+homepage: "https://gitlab.com/cryptsetup/cryptsetup"
+language: c
+primary_contact: "mbroz@redhat.com"
+sanitizers:
+  - address
+  - memory
+  - undefined
+main_repo: "https://gitlab.com/cryptsetup/cryptsetup.git"
