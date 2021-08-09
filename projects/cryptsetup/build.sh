@@ -18,7 +18,7 @@
 
 cd ../lvm2
 
-./configure --enable-static_link
+./configure --enable-static_link --disable-selinux
 # make -j$(nproc) ./device_mapper/libdevice-mapper.a
 # make -j$(nproc) libdm
 make -j$(nproc) libdm.device-mapper
@@ -30,6 +30,8 @@ cd ../cryptsetup
 ./autogen.sh
 ./configure --enable-static --disable-ssh-token
 make -j$(nproc) all
+
+# ../lvm2/device_mapper/libdevice-mapper.a \
 
 # build fuzzers
 # e.g.
@@ -44,14 +46,14 @@ do
      $fuzzer -o $OUT/$fuzzer_name \
      $LIB_FUZZING_ENGINE \
      .libs/libcryptsetup.a \
-     ../lvm2/device_mapper/libdevice-mapper.a \
+     ../lvm2/libdm/ioctl/libdevmapper.a \
+	-lm \
      	-Wl,-Bstatic \
 	-luuid \
 	-lssl \
 	-lcrypto \
 	-ljson-c \
 	-lblkid \
-	-lm \
 	-lpopt \
 	-luuid \
 	-lblkid \
