@@ -1,5 +1,12 @@
-sudo python infra/helper.py build_image cryptsetup
-sudo python infra/helper.py build_fuzzers cryptsetup
+# Requirements
+
+dnf install -y git python3 docker pip
+pip install protobuf
+
+# Buid Docker image and fuzzers
+
+sudo python3 infra/helper.py build_image cryptsetup
+sudo python3 infra/helper.py build_fuzzers cryptsetup
 
 # On selinux systems:
 sudo chcon -Rt svirt_sandbox_file_t build/

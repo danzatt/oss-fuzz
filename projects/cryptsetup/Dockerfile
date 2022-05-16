@@ -15,74 +15,29 @@
 ################################################################################
 
 FROM gcr.io/oss-fuzz-base/base-builder
-RUN apt-get update && apt-get install -y make autoconf automake libtool \
-		python-dev \
-		sharutils \
-		libssl-dev \
-		libdevmapper-dev \
-		libpopt-dev \
-		uuid-dev \
+RUN apt-get update && apt-get install -y make autoconf automake libtool sharutils \
 		dmsetup \
 		pkg-config \
 		autopoint \
 		gettext \
 		expect \
 		keyutils \
-		libjson-c-dev \
-		libaio-dev
-		#libssh-dev
+		ninja-build \
+		po4a
 
-#RUN git clone --depth 1 https://gitlab.com/daniel.zatovic/cryptsetup.git cryptsetup
-WORKDIR cryptsetup
-COPY cryptsetup .
+# libprotobuf mutator
+RUN git clone --depth 1 https://github.com/madler/zlib.git
+# no shallow support
+RUN git clone http://git.tukaani.org/xz.git
+RUN git clone --depth 1 https://github.com/json-c/json-c.git
+RUN git clone --depth 1 git://git.kernel.org/pub/scm/fs/ext2/e2fsprogs.git
+RUN git clone --depth 1 git://sourceware.org/git/lvm2.git
+RUN git clone --depth 1 https://github.com/rpm-software-management/popt.git
+RUN git clone --depth 1 https://github.com/protocolbuffers/protobuf.git
+RUN git clone --depth 1 https://github.com/google/libprotobuf-mutator.git
+RUN git clone --depth 1 git://git.openssl.org/openssl.git
 
-RUN git clone --depth 1 git://sourceware.org/git/lvm2.git lvm2
-
-RUN curl -O https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.37/util-linux-2.37.2.tar.xz
-RUN xz -d util-linux-2.37.2.tar.xz
-RUN tar xf util-linux-2.37.2.tar
-RUN rm util-linux-2.37.2.tar
-
-RUN curl -O https://s3.amazonaws.com/json-c_releases/releases/json-c-0.15.tar.gz
-RUN gunzip json-c-0.15.tar.gz
-RUN tar xf json-c-0.15.tar
-RUN rm json-c-0.15.tar
-
-RUN curl -O http://ftp.rpm.org/popt/releases/popt-1.x/popt-1.18.tar.gz
-RUN gunzip popt-1.18.tar.gz
-RUN tar xf popt-1.18.tar
-RUN rm popt-1.18.tar
-
-RUN curl -O https://www.openssl.org/source/openssl-1.1.1m.tar.gz
-RUN gunzip openssl-1.1.1m.tar.gz
-RUN tar xf openssl-1.1.1m.tar
-RUN rm openssl-1.1.1m.tar
+ENV PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig/
 
 COPY build.sh $SRC/
-RUN cp -r $SRC/ $OUT/src
-
-# WORKDIR lvm2
-# RUN ./configure --enable-static_link --disable-selinux
-# RUN make -j$(nproc) libdm.device-mapper
-# WORKDIR ..
-# 
-# WORKDIR util-linux-2.37.2/
-# RUN ./configure --enable-static
-# RUN make -j libuuid.la
-# WORKDIR ..
-# 
-# RUN mkdir json-c-0.15/build
-# WORKDIR json-c-0.15/build
-# RUN cmake -DBUILD_STATIC_LIBS=ON ..
-# RUN make -j json-c-static
-# WORKDIR ../..
-# 
-# WORKDIR popt-1.18/
-# RUN ./configure --enable-static
-# RUN make -j
-# WORKDIR ..
-# 
-# WORKDIR openssl-1.1.1m/
-# RUN ./config
-# RUN make -j
-# WORKDIR ..
+RUN git clone --depth 1 https://gitlab.com/daniel.zatovic/cryptsetup_fuzzing.git cryptsetup

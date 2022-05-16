@@ -1,77 +1,102 @@
 #!/usr/bin/env bash
 
+env
+
 set -ex
 
 export LC_CTYPE=C.UTF-8
 
 export CC=${CC:-clang}
 export CXX=${CXX:-clang++}
-export LIB_FUZZING_ENGINE=${LIB_FUZZING_ENGINE:--fsanitize=fuzzer}
+export LIB_FUZZING_ENGINE="${LIB_FUZZING_ENGINE:--fsanitize=fuzzer}"
 
-SANITIZER=${SANITIZER:-address -fsanitize-address-use-after-scope}
+SANITIZER="${SANITIZER:-address -fsanitize-address-use-after-scope}"
 flags="-O1 -fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=$SANITIZER -fsanitize=fuzzer-no-link"
 
-export CFLAGS=${CFLAGS:-$flags}
-export CXXFLAGS=${CXXFLAGS:-$flags}
+export CFLAGS="${CFLAGS:-$flags}"
+export CXXFLAGS="${CXXFLAGS:-$flags}"
+export OUT="${OUT:-$(pwd)/out}"
+export LDFLAGS="$CXXFLAGS"
 
-echo "lvm2 lvm2 lvm2 lvm2 lvm2 lvm2 lvm2 lvm2 lvm2 lvm2 "
-cd lvm2
-./configure --enable-static_link --disable-selinux
-# make -j$(nproc) ./device_mapper/libdevice-mapper.a
-# make -j$(nproc) libdm
-make V=1 -j$(nproc) libdm.device-mapper
+cd openssl
+./Configure linux-x86_64 no-shared --static "$CFLAGS"
+make build_generated
+make -j libcrypto.a
+make install_dev
 cd ..
 
-echo "libuuid libuuid libuuid libuuid libuuid libuuid libuuid libuuid libuuid libuuid "
-cd util-linux-2.37.2/
-./configure --enable-static
-make V=1 -j libuuid.la
-cd ..
-
-echo "jsonc jsonc jsonc jsonc jsonc jsonc jsonc jsonc jsonc jsonc "
-cd json-c-0.15
+cd e2fsprogs
 mkdir build
 cd build
-cmake -DBUILD_STATIC_LIBS=ON ..
-make VERBOSE=1 -j json-c-static
+../configure --enable-libuuid --enable-libblkid
+make -j V=1
+make install-libs-recursive
 cd ../..
 
-echo "popt popt popt popt popt popt popt popt popt popt "
-cd popt-1.18/
-./configure --enable-static
-make V=1 -j
+cd zlib
+./configure --static
+make -j
+make install
 cd ..
 
-echo "openssl openssl openssl openssl openssl openssl openssl openssl openssl openssl "
-cd openssl-1.1.1m/
-./config
-make V=1 -j
-cd ..
-
-echo "csetup csetup csetup csetup csetup csetup csetup csetup csetup csetup "
+cd xz
 ./autogen.sh
-./configure --enable-static --disable-ssh-token --disable-blkid --disable-udev --disable-selinux --disable-pwquality --with-crypto_backend=openssl --disable-cryptsetup --disable-veritysetup --disable-integritysetup
-make V=1 -j$(nproc) all
+./configure --enable-static --disable-shared
+make -j
+make install
+cd ..
 
-for fuzzer in tests/fuzz/*_fuzz.cc
-do
-  fuzzer_name=$(basename ${fuzzer%.cc})
-  $CXX $CXXFLAGS -I./ -I./lib -I.libs/ \
-     $fuzzer -o $OUT/$fuzzer_name \
-     $LIB_FUZZING_ENGINE \
-     .libs/libcryptsetup.a \
-     lvm2/libdm/ioctl/libdevmapper.a \
-     util-linux-2.37.2/.libs/libuuid.a \
-     json-c-0.15/build/libjson-c.a \
-     popt-1.18/src/.libs/libpopt.a \
-     openssl-1.1.1m/libcrypto.a \
-     openssl-1.1.1m/libssl.a \
-	-lm \
-	-Wl,-R$OUT
-  cp tests/fuzz/${fuzzer_name}_seed_corpus.zip $OUT
-done
-cp .libs/libcryptsetup.so $OUT/
-#cp -r $SRC ${OUT}/src
-cp $SRC/cryptsetup/*.dict $OUT
+cd json-c
+mkdir build
+cd build
+cmake .. -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON
+make -j
+make install
+cd ../..
 
-#ln -s $OUT/libcryptsetup.so $OUT/libcryptsetup.so.12
+cd lvm2
+./configure --enable-static_link
+make -j libdm.device-mapper
+mv ./libdm/ioctl/libdevmapper.a /usr/lib/libdevmapper.a
+mv ./libdm/libdevmapper.h /usr/include/
+cd ..
+
+cd popt
+./autogen.sh
+./configure --disable-shared --enable-static
+make -j
+make install
+cd ..
+
+cd protobuf
+git submodule update --init --recursive
+./autogen.sh
+./configure --prefix=/usr --enable-static --disable-shared
+make -j
+make install
+
+# rebuild protoc without sanitiser
+CFLAGS="" CXXFLAGS="" LDFLAGS="" ./configure --prefix=/usr --enable-static --disable-shared
+make -j
+mv ./src/protoc /usr/bin/
+cd ..
+
+mkdir libprotobuf-mutator-build
+cd libprotobuf-mutator-build
+cmake ../libprotobuf-mutator -DCMAKE_INSTALL_PREFIX=/usr -DPKG_CONFIG_PATH=/usr/lib/pkgconfig -GNinja -DLIB_PROTO_MUTATOR_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
+ninja
+ninja install
+cd ..
+
+cd cryptsetup
+git checkout fuzzing
+./autogen.sh
+./configure --enable-static --disable-ssh-token --disable-blkid --disable-udev --disable-selinux --disable-pwquality --with-crypto_backend=openssl --disable-shared --enable-fuzz-targets
+#./configure --enable-static --disable-ssh-token --disable-blkid --disable-udev --disable-selinux --disable-pwquality --with-crypto_backend=openssl --disable-cryptsetup --disable-veritysetup --disable-integritysetup --enable-shared=0
+make clean
+make -j fuzz-targets
+
+cp tests/fuzz/*_fuzz $OUT
+cp tests/fuzz/*_fuzz_seed_corpus.zip $OUT
+cp tests/fuzz/*_fuzz.dict $OUT
+cp tests/fuzz/proto_to_luks2 $OUT
